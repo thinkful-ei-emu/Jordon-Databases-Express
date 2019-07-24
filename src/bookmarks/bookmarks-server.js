@@ -18,7 +18,8 @@ const BookmarkTemp = bookmark => ({
 bookmarksRouter
     .route('/bookmarks')
     .get((req, res, next) => {
-        BookmarksService.getAllBookmarks(req.app.get('db'))
+        const knexInstance = req.app.get('db');
+        BookmarksService.getAllBookmarks(knexInstance)
             .then(bookmarks => {
                 res.json(bookmarks.map(BookmarkTemp))
             })
