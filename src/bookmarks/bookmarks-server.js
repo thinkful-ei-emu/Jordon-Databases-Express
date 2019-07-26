@@ -1,8 +1,7 @@
+const path = require('path');
 const express = require('express');
-const uuid = require('uuid/v4')
-// const logger = require('../logger')
-const list = require('../books')
-const BookmarksService = require('./bookmarks-service')
+const BookmarksService = require('./bookmarks-service');
+const xss = require('xss');
 
 const bookmarksRouter = express.Router()
 const bodyParser = express.json()
@@ -10,13 +9,13 @@ const bodyParser = express.json()
 const BookmarkTemp = bookmark => ({
     id: bookmark.id,
     title: bookmark.title,
-    url: bookmark.url,
-    description: bookmark.description,
-    rating: Number(bookmark.rating)
+    url: xss(bookmark.url),
+    description: xss(bookmark.description),
+    rating: bookmark.rating,
 })
 
 bookmarksRouter
-    .route('/bookmarks')
+    .route('/')
     .get((req, res, next) => {
         const knexInstance = req.app.get('db');
         BookmarksService.getAllBookmarks(knexInstance)
@@ -25,46 +24,57 @@ bookmarksRouter
             })
             .catch(next)
     })
-    .post(bodyParser, (req, res) => {
-        //defragmented req body
+    .post(bodyParser, (req, res, next) => {
+        const knexInstance = req.app.get('db');
+        //defracture req body
         const { title, url, description, rating } = req.body
         //Bookmark object with generated Id to /post
-        const bookmark = { id: uuid(), title, url, description, rating }
-        //Push bookmark to list
-        list.bookmarks.push(bookmark);
-        //Request has been fulfilled and new resourse created
-        res
-            .status(201)
-            .location(`http://localhost:8000/bookmarks/${bookmark.id}`)
-            .json(bookmark);
-    });
+        const newBookmark = { title, url, description, rating }
+
+        BookmarksService.insertBookmark(knexInstance, newBookmark)
+            .then(bookmark => {
+                res
+                    .status(201)
+                    .location(`/${bookmark.id}`)
+                    .json(BookmarkTemp(bookmark))
+            })
+            .catch(next)
+    })
+
 
 
 
 bookmarksRouter
-    .route('/bookmarks/:bookmarkId')
-    .get((req, res) => {
-        // get bookmark id 
-        const { bookmarkId } = req.params;
-        //Find bookmark id in list of bookmarks
-        const bookmark = list.bookmarks.find(each => each.id == bookmarkId);
-        //If bookmark id not found, return 404 Not Found
-        if (!bookmark) {
-            return res.status(404).send('Bookmark Not Found');
-        }
-        //Json bookmarks response
-        res.json(bookmark);
+    .route('/:bookmark_id')
+    .all((req, res, next) => {
+        BookmarksService.getById(
+            req.app.get('db'),
+            req.params.bookmark_id
+        )
+            .then(bookmark => {
+                console.log(req.params.bookmark_id)
+                if (!bookmark) {
+                    return res.status(404).json({
+                        error: { message: 'Article does not exist' }
+                    })
+                }
+                res.bookmark = bookmark
+                next()
+            })
+            .catch(next)
     })
-    .delete((req, res) => {
-        //et bookmark Id
-        const { bookmarkId } = req.params;
-        //Declaring bookmark index to delete
-        const bookmarkToDelete = list.bookmarks.findIndex(u => u.id === bookmarkId);
-        //Splice the bookmark index found
-        list.bookmarks.splice(bookmarkToDelete, 1);
-        //Everything worked, No content status
-        res.status(204).end();
-
+    .get((req, res, nest) => {
+        res.send(BookmarkTemp(res.bookmark))
     })
+    .delete((req, res, next) => {
+        BookmarksService.deleteBookmark(
+            req.app.get('db'),
+            req.params.bookmark_id
+        )
+            .then(row => {
+                res.status(204).end();
+            })
+            .catch(next)
+    });
 
-module.exports = bookmarksRouter
+module.exports = { bookmarksRouter }

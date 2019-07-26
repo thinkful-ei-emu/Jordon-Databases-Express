@@ -4,8 +4,7 @@ const morgan = require('morgan')
 const cors = require('cors')
 const helmet = require('helmet')
 const { NODE_ENV } = require('./config')
-// const errorHandler = require('./error-handler');
-const bookmarksServer = require('./bookmarks/bookmarks-server')
+const { bookmarksRouter } = require('./bookmarks/bookmarks-server')
 
 const app = express()
 
@@ -15,9 +14,6 @@ app.use(morgan((NODE_ENV === 'production') ? 'tiny' : 'common', {
 
 app.use(cors())
 app.use(helmet())
-app.use(bookmarksServer)
-
-
-// app.use(errorHandler)
+app.use('/bookmarks', bookmarksRouter)
 
 module.exports = app
